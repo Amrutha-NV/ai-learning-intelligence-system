@@ -167,7 +167,7 @@ const googleLogin = async (req, res) => {
 
     const payload = ticket.getPayload();
 
-    const email = payload.email;
+    const email = payload.email.toLowerCase().trim();
     const fullName = payload.name;
 
     let user = await User.findOne({ email });
@@ -249,7 +249,7 @@ const githubLogin = async (req, res) => {
     if (!user) {
       user = await User.create({
         fullName: githubUser.data.name || githubUser.data.login,
-        email: primaryEmail.toLowerCase(),
+        email: primaryEmail.toLowerCase().trim(),
         authProvider: "github",
       });
     }
@@ -345,6 +345,12 @@ const resetPassword = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         message: "User not found",
+      });
+    }
+
+    if (user.authProvider !== "local") {
+      return res.status(400).json({
+        message: `Password reset is not available for ${user.authProvider} accounts`,
       });
     }
 
