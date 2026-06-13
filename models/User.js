@@ -16,7 +16,45 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: false,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google", "github"],
+      default: "local",
+    },
+    bio: {
+      type: String,
+      default: "",
+    },
+    notificationSettings: {
+      studyReminder: {
+        type: Boolean,
+        default: true,
+      },
+      flashcardReminder: {
+        type: Boolean,
+        default: true,
+      },
+      weeklyReport: {
+        type: Boolean,
+        default: false,
+      },
+    },
+
+    preferences: {
+      preferredLanguage: {
+        type: String,
+        default: "English",
+      },
+      dailyStudyGoal: {
+        type: Number,
+        default: 3,
+      },
+      timezone: {
+        type: String,
+        default: "UTC+5:30",
+      },
     },
   },
   {
