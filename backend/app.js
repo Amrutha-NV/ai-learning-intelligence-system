@@ -22,6 +22,11 @@ const settingsRoutes = require("./routes/settingsRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const summaryRoutes = require("./routes/summaryRoutes");
+const quizRoutes = require("./routes/quizRoutes");
+
+const contentProcessingRoutes = require("./ai/contentProcessing/contentProcessingRoutes");
+const classificationRoutes = require("./ai/classification/classificationRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -31,6 +36,11 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/summaries", summaryRoutes);
+app.use("/api/quizzes", quizRoutes);
+
+app.use("/api/ai", contentProcessingRoutes);
+app.use("/api/ai",classificationRoutes);
 
 // Test route
 app.get("/", (req, res) => {

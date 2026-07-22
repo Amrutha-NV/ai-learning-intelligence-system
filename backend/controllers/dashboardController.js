@@ -4,7 +4,7 @@ const createTrack = async (req, res) => {
     try {
         const track = await dashboardService.createManualTrack(
             req.user.id,
-            req.body.name
+            req.body.trackName
         );
 
         res.status(201).json(track);
@@ -48,15 +48,26 @@ const getTopics = async (req, res) => {
 
 const getTopicTimeline = async (req, res) => {
     try {
+        const { topicId } = req.params;
+
         const timeline =
             await dashboardService.getTopicTimeline(
                 req.user.id,
-                req.params.topicId
+                topicId
             );
 
-        res.status(200).json(timeline);
+        return res.status(200).json({
+            success: true,
+            data: timeline,
+        });
     } catch (error) {
-        res.status(500).json({
+        console.error(
+            "Failed to get topic timeline:",
+            error.message
+        );
+
+        return res.status(500).json({
+            success: false,
             message: error.message,
         });
     }
