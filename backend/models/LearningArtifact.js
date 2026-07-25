@@ -2,49 +2,21 @@ const mongoose = require("mongoose");
 
 
 /*
-====================================================
-QUIZ ATTEMPT
-Stores each completed attempt by the user.
-====================================================
-*/
-const QuizAttemptSchema = new mongoose.Schema(
-    {
-        score: {
-            type: Number,
-            required: true,
-            min: 0,
-        },
-
-        totalQuestions: {
-            type: Number,
-            required: true,
-            min: 1,
-        },
-
-        accuracy: {
-            type: Number,
-            required: true,
-            min: 0,
-            max: 100,
-        },
-
-        completedAt: {
-            type: Date,
-            default: Date.now,
-        },
-    },
-    {
-        _id: true,
-    }
-);
-
-
-/*
-====================================================
+==================================================
 SUMMARY
-Filled later by Summary AI.
-====================================================
+==================================================
+Friend's Summary AI currently returns:
+
+content: [
+    "Point 1",
+    "Point 2",
+    ...
+]
+
+We store that as summary.keyPoints.
+==================================================
 */
+
 const SummarySchema = new mongoose.Schema(
     {
         status: {
@@ -68,11 +40,6 @@ const SummarySchema = new mongoose.Schema(
             default: [],
         },
 
-        subtopic: {
-            type: String,
-            default: null,
-        },
-
         generatedAt: {
             type: Date,
             default: null,
@@ -90,11 +57,31 @@ const SummarySchema = new mongoose.Schema(
 
 
 /*
-====================================================
-QUIZ QUESTION
-Filled later by Quiz AI.
-====================================================
+==================================================
+QUIZ QUESTIONS
+==================================================
+
+Friend's Quiz AI can return:
+
+correctAnswer: 0
+
+where the number represents the index in options[].
+
+Example:
+
+options: [
+    "A",
+    "B",
+    "C",
+    "D"
+]
+
+correctAnswer: 1
+
+means option B.
+==================================================
 */
+
 const QuizQuestionSchema = new mongoose.Schema(
     {
         question: {
@@ -104,12 +91,13 @@ const QuizQuestionSchema = new mongoose.Schema(
 
         options: {
             type: [String],
-            default: [],
+            required: true,
         },
 
         correctAnswer: {
-            type: String,
+            type: Number,
             required: true,
+            min: 0,
         },
 
         explanation: {
@@ -124,11 +112,11 @@ const QuizQuestionSchema = new mongoose.Schema(
 
 
 /*
-====================================================
-QUIZ
-Stores generated quiz + AI processing state.
-====================================================
+==================================================
+GENERATED QUIZ
+==================================================
 */
+
 const QuizSchema = new mongoose.Schema(
     {
         status: {
@@ -169,47 +157,92 @@ const QuizSchema = new mongoose.Schema(
 
 
 /*
-====================================================
-LEARNING ARTIFACT
-One artifact belongs to one Activity.
-====================================================
+==================================================
+QUIZ ATTEMPTS
+==================================================
 */
-const LearningArtifactSchema = new mongoose.Schema(
+
+const QuizAttemptSchema = new mongoose.Schema(
     {
-        userId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
+        score: {
+            type: Number,
             required: true,
-            index: true,
         },
 
-        activityId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Activity",
+        totalQuestions: {
+            type: Number,
             required: true,
-            unique: true,
-            index: true,
         },
 
-        summary: {
-            type: SummarySchema,
-            default: () => ({}),
+        accuracy: {
+            type: Number,
+            required: true,
         },
 
-        quiz: {
-            type: QuizSchema,
-            default: () => ({}),
-        },
-
-        quizAttempts: {
-            type: [QuizAttemptSchema],
-            default: [],
+        completedAt: {
+            type: Date,
+            default: Date.now,
         },
     },
     {
-        timestamps: true,
+        _id: true,
     }
 );
+
+
+/*
+==================================================
+LEARNING ARTIFACT
+==================================================
+
+One LearningArtifact belongs to one Activity.
+
+Activity
+   ↓
+LearningArtifact
+   ├── Summary
+   ├── Quiz
+   └── Quiz Attempts
+==================================================
+*/
+
+const LearningArtifactSchema =
+    new mongoose.Schema(
+        {
+            userId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                required: true,
+                index: true,
+            },
+
+            activityId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Activity",
+                required: true,
+                unique: true,
+                index: true,
+            },
+
+            summary: {
+                type: SummarySchema,
+                default: () => ({}),
+            },
+
+            quiz: {
+                type: QuizSchema,
+                default: () => ({}),
+            },
+
+            quizAttempts: {
+                type: [QuizAttemptSchema],
+                default: [],
+            },
+        },
+        {
+            timestamps: true,
+        }
+    );
 
 
 module.exports = mongoose.model(
