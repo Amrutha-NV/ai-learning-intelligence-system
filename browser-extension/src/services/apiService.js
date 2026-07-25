@@ -44,7 +44,7 @@ async function sendLearningEvent(learningEvent) {
     try {
 
         const response = await fetch(
-            `${API_BASE_URL}/learning-session`,
+            `${API_BASE_URL}/activities`,
             {
                 method: "POST",
                 headers: await createHeaders(),

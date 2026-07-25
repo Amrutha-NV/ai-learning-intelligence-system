@@ -16,7 +16,7 @@ class Summary(BaseModel):
 class Question(BaseModel):
     question: str
     options: List[str]
-    correctAnswer: str
+    correctAnswer: int
     explanation: str
 
 

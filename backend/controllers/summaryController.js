@@ -3,10 +3,20 @@ const summaryService = require(
 );
 
 
-const prepareSummary = async (
+/*
+==================================================
+GENERATE SUMMARY
+==================================================
+
+POST
+/api/summaries/generate/:activityId
+*/
+
+const generateSummary = async (
     req,
     res
 ) => {
+
     try {
 
         const { activityId } =
@@ -14,13 +24,14 @@ const prepareSummary = async (
 
 
         const result =
-            await summaryService.prepareSummary(
-                req.user.id,
-                activityId
-            );
+            await summaryService
+                .generateSummary(
+                    req.user.id,
+                    activityId
+                );
 
 
-        return res.status(200).json({
+        return res.status(202).json({
             success: true,
             data: result,
         });
@@ -28,12 +39,12 @@ const prepareSummary = async (
     } catch (error) {
 
         console.error(
-            "Prepare summary failed:",
+            "Summary generation failed:",
             error.message
         );
 
 
-        return res.status(400).json({
+        return res.status(500).json({
             success: false,
             message: error.message,
         });
@@ -41,10 +52,20 @@ const prepareSummary = async (
 };
 
 
+/*
+==================================================
+GET SUMMARY
+==================================================
+
+GET
+/api/summaries/:activityId
+*/
+
 const getSummary = async (
     req,
     res
 ) => {
+
     try {
 
         const { activityId } =
@@ -76,13 +97,65 @@ const getSummary = async (
 
     } catch (error) {
 
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+
+/*
+==================================================
+SUMMARY AI CALLBACK
+==================================================
+
+POST
+/api/summaries/ai-callback
+
+This endpoint is called by the AI service,
+not by the frontend.
+*/
+
+const receiveSummaryCallback = async (
+    req,
+    res
+) => {
+
+    try {
+
+        const result =
+            await summaryService
+                .handleSummaryCallback(
+                    req.body
+                );
+
+
+        console.log(
+            `Summary callback processed for activity ${req.body.activityId}`
+        );
+
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Summary callback processed successfully",
+
+            data: {
+                summary:
+                    result.summary,
+            },
+        });
+
+    } catch (error) {
+
         console.error(
-            "Get summary failed:",
+            "Summary callback failed:",
             error.message
         );
 
 
-        return res.status(400).json({
+        return res.status(500).json({
             success: false,
             message: error.message,
         });
@@ -91,6 +164,7 @@ const getSummary = async (
 
 
 module.exports = {
-    prepareSummary,
+    generateSummary,
     getSummary,
+    receiveSummaryCallback,
 };

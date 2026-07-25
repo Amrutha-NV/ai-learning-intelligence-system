@@ -1,6 +1,9 @@
-const express = require("express");
+const express = require(
+    "express"
+);
 
-const router = express.Router();
+const router =
+    express.Router();
 
 const protect = require(
     "../middleware/authMiddleware"
@@ -9,15 +12,19 @@ const protect = require(
 const {
     generateQuiz,
     getQuiz,
-    submitQuizAttempt,
+    receiveQuizAICallback,
+    retryQuizGeneration,
 } = require(
     "../controllers/quizController"
 );
 
 
 /*
-Prepare / generate Quiz
+Frontend → Backend
+
+Generate Quiz
 */
+
 router.post(
     "/generate/:activityId",
     protect,
@@ -26,8 +33,11 @@ router.post(
 
 
 /*
-Get Quiz
+Frontend → Backend
+
+Get generated Quiz
 */
+
 router.get(
     "/:activityId",
     protect,
@@ -36,13 +46,18 @@ router.get(
 
 
 /*
-Save Quiz attempt
-*/
-router.post(
-    "/:activityId/attempt",
-    protect,
-    submitQuizAttempt
-);
+AI Service → Backend
 
+Do NOT use normal user authentication
+middleware here.
+
+The Celery worker is calling this route,
+not a logged-in browser user.
+*/
+
+router.post(
+    "/ai-callback",
+    receiveQuizAICallback
+);
 
 module.exports = router;

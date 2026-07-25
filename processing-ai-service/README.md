@@ -1,26 +1,27 @@
 # Processing AI Service
 
-This service handles learning-content processing and classification for the AI Learning Intelligence System.
+The **Processing AI Service** is the AI processing and classification layer of the **AI Learning Intelligence System**.
 
-It accepts learning activities from the Node.js backend, checks Redis for previously classified content, queues AI processing using Celery, processes learning content through LangGraph and Groq, and returns structured classification results to the Node.js backend.
+It receives learning activities from the Node.js backend, processes learning content asynchronously using **Celery**, orchestrates the AI workflow using **LangGraph**, uses **Groq** for LLM-based classification, caches reusable results in **Redis**, and sends completed results back to the Node.js backend.
 
-## What This Service Does
+---
 
-Exposes FastAPI endpoints under `/api`.
+## Features
 
-Uses Redis to cache classification results.
+- FastAPI-based AI processing API
+- Asynchronous processing with Celery
+- Redis-based caching and task messaging
+- LangGraph workflow orchestration
+- Groq LLM integration
+- Learning-content fetching and recovery
+- Content cleaning and normalization
+- Chunk-based content processing
+- Structured learning classification
+- Automatic retry support for temporary processing failures
+- Callback integration with the Node.js backend
+- Docker Compose development environment
 
-Uses Celery for asynchronous background processing.
-
-Fetches webpage content when learning content needs to be retrieved from a URL.
-
-Cleans and normalizes learning content before classification.
-
-Uses LangGraph to control the AI processing workflow.
-
-Uses Groq as the LLM provider.
-
-Classifies learning activities into:
+The classification pipeline identifies:
 
 - Track
 - Topic
@@ -28,80 +29,124 @@ Classifies learning activities into:
 - Resource type
 - Problem difficulty
 
-Returns a Celery task ID immediately when background processing starts.
+---
 
-Provides an endpoint for checking Celery task results.
+## Architecture
 
-Sends completed classification results back to the Node.js backend through a callback.
+```text
+Browser Extension
+        |
+        v
+Node.js Backend
+        |
+        v
+MongoDB Activity
+        |
+        v
+Processing AI Service (FastAPI)
+        |
+        v
+Redis
+        |
+        v
+Celery Worker
+        |
+        v
+LangGraph Workflow
+        |
+        +------------------+
+        |                  |
+        v                  v
+Content Processing     Classification
+        |                  |
+        +--------+---------+
+                 |
+                 v
+               Groq
+                 |
+                 v
+        Structured Classification
+                 |
+                 v
+              Redis Cache
+                 |
+                 v
+          Node.js Callback
+                 |
+                 v
+        MongoDB Activity Update
+                 |
+                 v
+       Dashboard Track / Topic
+```
 
-Runs FastAPI, Redis, and Celery using Docker Compose.
+---
 
+## Processing Flow
 
-# Project Flow
+1. The browser extension captures a learning activity.
+2. The Node.js backend stores the Activity in MongoDB.
+3. The backend sends the learning activity to:
 
-The browser extension sends a learning activity to the Node.js backend.
+```http
+POST /api/process/
+```
 
-The Node.js backend stores the Activity in MongoDB.
+4. The Processing AI Service checks Redis for an existing classification associated with the learning resource.
+5. If a cached result exists, it can be returned immediately.
+6. Otherwise, a Celery background task is created.
+7. FastAPI immediately returns the Celery task ID.
+8. The Celery worker executes the LangGraph processing workflow.
+9. Learning content is fetched or recovered when necessary.
+10. The content is validated, cleaned, normalized, and chunked.
+11. Groq classifies the learning material.
+12. The structured classification is stored in Redis.
+13. The result is sent to the Node.js backend through a callback.
+14. The backend updates the Activity in MongoDB.
+15. The classification is used to organize dashboard Tracks and Topics.
 
-The backend sends the activity to:
+---
 
-`POST /api/process/`
+## Classification Structure
 
-The Processing AI Service checks Redis using the activity URL.
-
-If a cached classification exists, the cached result is returned immediately.
-
-If no cached classification exists, a Celery task is created.
-
-FastAPI immediately returns the Celery task ID.
-
-The Celery worker processes the activity in the background.
-
-The LangGraph workflow fetches and processes the learning content.
-
-Groq classifies the learning material.
-
-The classification is stored in Redis.
-
-The completed classification is returned to the Node.js backend.
-
-The backend updates the Activity in MongoDB.
-
-The backend then links the classified Activity to the appropriate Dashboard Track and Topic.
-
-
-# Classification Structure
-
-A classification result has the following structure:
+Example:
 
 ```json
 {
   "track": "Data Structures & Algorithms",
-  "topic": "Graph Traversal",
+  "topic": "Graph Algorithms",
   "subtopics": [
-    "Breadth First Search",
-    "Graph Representation"
+    "Dijkstra's Algorithm",
+    "Shortest Path",
+    "Greedy Strategy",
+    "Priority Queue"
   ],
-  "resource_type": "Tutorial",
+  "resource_type": "Article",
   "problem_difficulty": null
 }
 ```
 
+---
 
 # API
 
-Base URL during local development:
+Local development base URL:
 
 ```text
 http://localhost:8000
 ```
 
+Interactive API documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+---
 
 ## Health Check
 
-### GET `/health`
-
-Purpose:
+### `GET /health`
 
 Checks whether the Processing AI Service is running.
 
@@ -116,23 +161,15 @@ Example response:
 }
 ```
 
+---
 
-# Process Learning Activity
+## Process Learning Activity
 
-### POST `/api/process/`
+### `POST /api/process/`
 
-Purpose:
+Accepts a learning activity and starts the classification pipeline.
 
-Accepts learning content and starts classification.
-
-Before starting AI processing, Redis is checked using the learning URL.
-
-If the URL has already been classified, the cached result is returned.
-
-Otherwise, a Celery task is created.
-
-
-## Request Body
+### Example Request
 
 ```json
 {
@@ -146,8 +183,9 @@ Otherwise, a Celery task is created.
 }
 ```
 
+### Processing Response
 
-## Processing Response
+When processing is queued:
 
 ```json
 {
@@ -158,8 +196,7 @@ Otherwise, a Celery task is created.
 }
 ```
 
-
-## Cache Hit Response
+### Cache Hit Response
 
 ```json
 {
@@ -181,14 +218,13 @@ Otherwise, a Celery task is created.
 }
 ```
 
+---
 
-# Get Processing Result
+## Get Processing Result
 
-### GET `/api/process/{task_id}`
+### `GET /api/process/{task_id}`
 
-Purpose:
-
-Checks the status of a Celery processing task and returns the classification when processing has completed.
+Checks the status of a Celery processing task.
 
 Example:
 
@@ -196,8 +232,7 @@ Example:
 GET /api/process/db5ab0ff-8fe5-4fdb-a28d-c0f77b4c2712
 ```
 
-
-## Possible Status Values
+Possible states:
 
 ```text
 PENDING
@@ -207,8 +242,7 @@ COMPLETED
 FAILED
 ```
 
-
-## Completed Response
+### Completed Response
 
 ```json
 {
@@ -230,23 +264,19 @@ FAILED
 }
 ```
 
+---
 
-# Callback Contract With Node Backend
+# Node.js Backend Callback
 
-When background classification completes, the Processing AI Service sends the result back to the Node.js backend.
+After classification completes, the result is sent back to the Node.js backend.
 
-During Docker-based local development, the callback URL is:
+### Endpoint
 
-```text
-http://host.docker.internal:5000/api/activities/ai-callback
+```http
+POST /api/activities/ai-callback
 ```
 
-
-## Classification Callback
-
-### POST `/api/activities/ai-callback`
-
-The Node.js backend receives:
+### Example Payload
 
 ```json
 {
@@ -266,10 +296,25 @@ The Node.js backend receives:
 }
 ```
 
+### Callback Host
 
-# Backend Activity Update
+When the caller is running **inside Docker** and the Node.js backend is running on the Windows host:
 
-When the callback is received, the Node.js backend updates the Activity.
+```text
+http://host.docker.internal:5000/api/activities/ai-callback
+```
+
+When the AI/Celery process itself is running directly on the host machine:
+
+```text
+http://127.0.0.1:5000/api/activities/ai-callback
+```
+
+Use the callback host appropriate for the environment in which the caller is running.
+
+---
+
+# Backend Activity State
 
 Before processing:
 
@@ -285,43 +330,29 @@ classificationStatus = COMPLETED
 processed = true
 ```
 
-The classification is stored inside the Activity:
+The classification and Celery task ID are stored with the Activity for organization, tracing, and debugging.
 
-```json
-{
-  "classification": {
-    "track": "Data Structures & Algorithms",
-    "topic": "Graph Traversal",
-    "subtopics": [
-      "Breadth First Search",
-      "Graph Representation"
-    ],
-    "resource_type": "Tutorial",
-    "problem_difficulty": null
-  }
-}
-```
-
-The Celery task ID is also stored in `classificationTaskId` for tracing and debugging.
-
+---
 
 # Dashboard Integration
 
-After classification completes, the backend uses the AI classification to organize Activities.
+The backend uses AI classification to automatically organize learning activities.
 
 Example:
 
 ```text
 Data Structures & Algorithms
         |
-        └── Graph Traversal
+        └── Graph Algorithms
                 |
-                ├── Breadth First Search Activity
-                └── Depth First Search Activity
+                ├── Breadth First Search
+                ├── Depth First Search
+                └── Dijkstra's Algorithm
 ```
 
-The AI classification therefore becomes the source for automatically creating and updating Dashboard Tracks and Topics.
+This allows dashboard Tracks and Topics to be derived from classified learning activities.
 
+---
 
 # Redis
 
@@ -331,28 +362,33 @@ Redis is used for:
 - Celery broker
 - Celery result backend
 
-Inside Docker, Redis is available at:
+Inside Docker Compose:
 
 ```text
 redis://redis:6379/0
 ```
 
-The hostname is `redis` because Redis runs as a Docker Compose service.
+Docker services should communicate using the Compose service hostname:
 
-Do not use `localhost` between Docker containers.
+```text
+redis
+```
 
+Do not use `localhost` for communication between separate Docker containers.
+
+---
 
 # Celery
 
-Celery handles AI processing outside the FastAPI request lifecycle.
+Celery executes AI processing outside the FastAPI request lifecycle.
 
-Current task:
+Main processing task:
 
 ```text
 src.tasks.processing_task.process_learning_task
 ```
 
-Processing flow:
+Flow:
 
 ```text
 FastAPI
@@ -373,18 +409,46 @@ Groq
 Classification
 ```
 
-This prevents the FastAPI request from waiting for the complete AI operation.
+This prevents long-running AI operations from blocking FastAPI requests.
 
+---
+
+# LangGraph Workflow
+
+LangGraph controls the processing pipeline.
+
+The main workflow consists of nodes responsible for:
+
+```text
+Fetch
+  |
+  v
+Processing
+  |
+  v
+Classification
+```
+
+The processing layer performs operations such as:
+
+- Content recovery
+- Validation
+- Cleaning
+- Normalization
+- Metadata processing
+- Chunking
+
+The classification agent then converts the processed learning context into structured classification data.
+
+---
 
 # Error Handling and Retries
 
-The processing task contains error handling for failed AI processing.
+Temporary AI or network failures can be retried through Celery.
 
-Temporary failures can be retried automatically by Celery.
+The original Activity remains stored in MongoDB even when AI processing fails.
 
-The Activity itself remains stored in MongoDB even when AI processing fails.
-
-Possible Activity states are:
+Possible Activity processing states include:
 
 ```text
 NOT_STARTED
@@ -393,12 +457,15 @@ COMPLETED
 FAILED
 ```
 
+Failed callbacks or AI operations should be logged so that they can be traced using the Activity ID and Celery task ID.
+
+---
 
 # Docker
 
-The service uses Docker Compose.
+The Processing AI Service uses Docker Compose for its development infrastructure.
 
-Current services:
+Services include:
 
 ```text
 ai-processing-service
@@ -406,12 +473,15 @@ celery-worker
 redis
 ```
 
-`ai-processing-service` runs FastAPI.
+Responsibilities:
 
-`celery-worker` executes background AI tasks.
+```text
+ai-processing-service → FastAPI
+celery-worker         → Background AI processing
+redis                 → Cache + Celery messaging/results
+```
 
-`redis` provides caching and Celery messaging.
-
+---
 
 # Local Setup
 
@@ -427,6 +497,47 @@ For development outside Docker:
 - Python 3.11+
 - uv
 
+Check Python:
+
+```bash
+python --version
+```
+
+Check uv:
+
+```bash
+uv --version
+```
+
+---
+
+## Install Dependencies
+
+Move into the service:
+
+```bash
+cd processing-ai-service
+```
+
+Synchronize dependencies:
+
+```bash
+uv sync
+```
+
+Dependencies are defined in:
+
+```text
+pyproject.toml
+```
+
+and locked using:
+
+```text
+uv.lock
+```
+
+---
 
 # Environment Variables
 
@@ -449,7 +560,6 @@ DEBUG=true
 GROQ_API_KEY=your_groq_api_key
 
 MODEL_NAME=llama-3.3-70b-versatile
-
 TEMPERATURE=0.0
 
 CHUNK_SIZE=1200
@@ -460,27 +570,19 @@ REDIS_URL=redis://redis:6379/0
 
 Never commit the real `.env` file.
 
-
-# Install Dependencies
-
-Using uv:
-
-```bash
-uv sync
-```
-
+---
 
 # Run With Docker
 
 Make sure Docker Desktop is running.
 
-Move into the service:
+Move into:
 
 ```bash
 cd processing-ai-service
 ```
 
-For the first run or after dependency changes:
+For the first run or after dependency/Docker changes:
 
 ```bash
 docker compose up --build
@@ -492,30 +594,23 @@ For normal startup:
 docker compose up
 ```
 
-Expected services:
-
-```text
-redis-server
-ai-processing-service
-celery-worker
-```
-
-
-# Run in Background
+Run in the background:
 
 ```bash
 docker compose up -d
 ```
 
+---
 
-# Check Containers
+## Check Containers
 
 ```bash
 docker compose ps
 ```
 
+---
 
-# View Logs
+## View Logs
 
 All services:
 
@@ -523,40 +618,43 @@ All services:
 docker compose logs -f
 ```
 
-Celery only:
+Celery:
 
 ```bash
 docker compose logs -f celery-worker
 ```
 
-FastAPI only:
+FastAPI:
 
 ```bash
 docker compose logs -f ai-processing-service
 ```
 
-Redis only:
+Redis:
 
 ```bash
 docker compose logs -f redis
 ```
 
+---
 
-# Stop Services
+## Stop Services
 
 ```bash
 docker compose down
 ```
 
+---
 
-# Rebuild Services
+## Rebuild Services
 
-After dependency or Docker configuration changes:
+After changing dependencies, `pyproject.toml`, `uv.lock`, the Dockerfile, or other build configuration:
 
 ```bash
 docker compose up --build
 ```
 
+---
 
 # Run Without Docker
 
@@ -574,10 +672,11 @@ uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 Redis must also be running.
 
-A Celery worker must also be started separately.
+The Celery worker must be started separately.
 
-Docker Compose is recommended because it starts the required infrastructure together.
+Docker Compose is recommended when running the complete processing stack.
 
+---
 
 # Test Redis
 
@@ -587,48 +686,53 @@ Open Redis CLI:
 docker exec -it redis-server redis-cli
 ```
 
-Test the connection:
+Run:
 
 ```text
 PING
 ```
 
-Expected:
+Expected response:
 
 ```text
 PONG
 ```
 
-Check stored keys:
+Check keys:
 
 ```text
 KEYS *
 ```
 
-Exit Redis:
+Exit:
 
 ```text
 exit
 ```
 
+---
 
 # Test Classification
 
-After starting Docker Compose, open:
+Start the Docker environment:
+
+```bash
+docker compose up
+```
+
+Open Swagger:
 
 ```text
 http://localhost:8000/docs
 ```
 
-Use:
+Call:
 
-```text
+```http
 POST /api/process/
 ```
 
-Submit a new learning URL.
-
-The response should initially contain:
+A new request should initially return:
 
 ```json
 {
@@ -639,22 +743,21 @@ The response should initially contain:
 }
 ```
 
-Copy the `task_id`.
-
 Then call:
 
-```text
+```http
 GET /api/process/{task_id}
 ```
 
-After processing completes, the response should contain:
+When processing finishes:
 
 ```text
 status = COMPLETED
 ```
 
-along with the classification.
+and the response should contain the generated classification.
 
+---
 
 # Example cURL Request
 
@@ -670,96 +773,72 @@ curl -X POST "http://localhost:8000/api/process/" \
   }'
 ```
 
+---
 
-# Relevant Files
-
-```text
-main.py
-
-Dockerfile
-docker-compose.yml
-pyproject.toml
-uv.lock
-
-src/celery_app.py
-
-src/api/classification.py
-src/api/routes.py
-
-src/config/redis.py
-src/config/settings.py
-
-src/graphs/learning_graph.py
-
-src/tasks/processing_task.py
-src/tasks/test_task.py
-
-src/services/cache_service.py
-src/services/classification_service.py
-src/services/llm_service.py
-src/services/url_fetch_service.py
-
-src/nodes/fetch_node.py
-src/nodes/processing_node.py
-src/nodes/classification_node.py
-src/nodes/router_node.py
-
-src/processors/chunker.py
-src/processors/cleaner.py
-src/processors/metadata.py
-src/processors/normalizer.py
-src/processors/recovery.py
-src/processors/validator.py
-
-src/agents/classification/agent.py
-src/agents/processing/agent.py
-```
-
-
-# Current Integration
-
-The current working flow is:
+# Project Structure
 
 ```text
-Browser Extension
-        |
-        v
-Node.js Backend
-        |
-        v
-MongoDB Activity
-        |
-        v
-Processing AI Service
-        |
-        v
-Redis + Celery
-        |
-        v
-LangGraph
-        |
-        v
-Groq
-        |
-        v
-Classification
-        |
-        v
-Node Callback
-        |
-        v
-MongoDB Activity Update
-        |
-        v
-Dashboard Track / Topic
+processing-ai-service/
+│
+├── main.py
+├── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+├── uv.lock
+│
+└── src/
+    ├── celery_app.py
+    │
+    ├── api/
+    │   ├── classification.py
+    │   └── routes.py
+    │
+    ├── config/
+    │   ├── redis.py
+    │   └── settings.py
+    │
+    ├── graphs/
+    │   └── learning_graph.py
+    │
+    ├── tasks/
+    │   ├── processing_task.py
+    │   └── test_task.py
+    │
+    ├── nodes/
+    │   ├── fetch_node.py
+    │   ├── processing_node.py
+    │   ├── classification_node.py
+    │   └── router_node.py
+    │
+    ├── processors/
+    │   ├── chunker.py
+    │   ├── cleaner.py
+    │   ├── metadata.py
+    │   ├── normalizer.py
+    │   ├── recovery.py
+    │   └── validator.py
+    │
+    ├── services/
+    │   ├── cache_service.py
+    │   ├── classification_service.py
+    │   ├── llm_service.py
+    │   └── url_fetch_service.py
+    │
+    └── agents/
+        ├── classification/
+        │   └── agent.py
+        │
+        └── processing/
+            └── agent.py
 ```
 
+---
 
-# Summary and Quiz
+# Summary and Quiz Integration
 
-Summary and Quiz use separate AI integration work.
+Summary and Quiz are separate AI workflows from the Processing AI Service's classification pipeline.
 
-The Node.js backend already contains the foundation for:
+The broader system contains support for:
 
 ```text
 LearningArtifact
@@ -768,23 +847,22 @@ Quiz
 Quiz Attempts
 ```
 
-The Summary and Quiz AI services will later connect to these backend modules.
+These workflows can use their own asynchronous AI generation and callback mechanisms while consuming the classification and learning context produced by the overall system.
 
-They do not need to be merged into this Processing AI Service for the current architecture.
+Keeping these responsibilities separated prevents the classification service from becoming tightly coupled to every AI feature.
 
+---
 
 # Current Limitations
 
-Classification caching currently uses the learning URL.
+- Classification caching currently relies primarily on the learning URL.
+- Cached URLs may reuse an existing classification.
+- Classification quality depends on the available learning content and metadata.
+- Some websites may restrict automated content extraction.
+- External LLM requests depend on Groq API availability.
+- Callback URLs differ depending on whether the caller runs on the host or inside Docker.
 
-Therefore, repeated processing of the same cached URL may reuse the existing classification.
-
-Classification depends on the quality of the content available from the learning resource.
-
-Some websites may restrict automated content fetching.
-
-Summary and Quiz AI integration is separate and is not yet part of this Processing AI Service.
-
+---
 
 # Security
 
@@ -796,8 +874,13 @@ Groq API keys
 MongoDB credentials
 JWT secrets
 OAuth client secrets
+service callback secrets
 ```
 
-Only `.env.example` should be committed.
+Commit only safe templates such as:
 
-If a credential is accidentally committed or exposed, rotate it immediately.
+```text
+.env.example
+```
+
+If a credential is accidentally exposed, rotate it immediately.

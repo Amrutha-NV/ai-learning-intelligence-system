@@ -1,26 +1,40 @@
-const Activity = require("../models/Activity");
+const Activity = require(
+    "../models/Activity"
+);
 
 const LearningArtifact = require(
     "../models/LearningArtifact"
 );
 
+const {
+    requestSummaryGeneration,
+} = require(
+    "./summaryAIService"
+);
+
 
 /*
-Find Activity and verify that it belongs
-to the authenticated user.
+==================================================
+HELPER
+==================================================
+Find Activity and verify ownership.
 */
+
 const getUserActivity = async (
     userId,
     activityId
 ) => {
 
-    const activity = await Activity.findOne({
-        _id: activityId,
-        userId,
-    });
+    const activity =
+        await Activity.findOne({
+            _id: activityId,
+            userId,
+        });
 
     if (!activity) {
-        throw new Error("Activity not found");
+        throw new Error(
+            "Activity not found"
+        );
     }
 
     return activity;
@@ -28,24 +42,40 @@ const getUserActivity = async (
 
 
 /*
-Prepare a LearningArtifact for Summary generation.
+==================================================
+GENERATE SUMMARY
+==================================================
 
-This does NOT call the friend's AI yet.
+Activity
+   ↓
+Verify classification
+   ↓
+Create/find LearningArtifact
+   ↓
+Call Summary AI
+   ↓
+Store Celery task ID
+   ↓
+Wait for callback
 */
-const prepareSummary = async (
+
+const generateSummary = async (
     userId,
     activityId
 ) => {
 
-    const activity = await getUserActivity(
-        userId,
-        activityId
-    );
+    const activity =
+        await getUserActivity(
+            userId,
+            activityId
+        );
 
 
     /*
-    Summary should use classified learning data.
+    Summary generation is allowed only
+    after classification finishes.
     */
+
     if (
         activity.classificationStatus !==
         "COMPLETED"
@@ -56,6 +86,10 @@ const prepareSummary = async (
     }
 
 
+    /*
+    One LearningArtifact per Activity.
+    */
+
     let artifact =
         await LearningArtifact.findOne({
             activityId: activity._id,
@@ -63,7 +97,6 @@ const prepareSummary = async (
 
 
     if (!artifact) {
-
         artifact =
             await LearningArtifact.create({
                 userId,
@@ -73,14 +106,15 @@ const prepareSummary = async (
 
 
     /*
-    Already generated.
+    Summary already exists.
+    Do not regenerate it.
     */
+
     if (
         artifact.summary.status ===
         "COMPLETED"
     ) {
         return {
-            ready: true,
             alreadyGenerated: true,
             status: "COMPLETED",
             artifact,
@@ -88,24 +122,210 @@ const prepareSummary = async (
     }
 
 
-    return {
-        ready: true,
-        alreadyGenerated: false,
-        status:
-            artifact.summary.status,
-        activity,
-        artifact,
-    };
+    /*
+    Summary generation is already running.
+    Prevent duplicate Celery jobs.
+    */
+
+    if (
+        artifact.summary.status ===
+        "PROCESSING"
+    ) {
+        return {
+            alreadyGenerated: false,
+            status: "PROCESSING",
+            taskId:
+                artifact.summary.taskId,
+            artifact,
+        };
+    }
+
+
+    try {
+
+        /*
+        Node → Summary AI
+        */
+
+        const aiResponse =
+            await requestSummaryGeneration(
+                activity
+            );
+
+
+        /*
+        Current AI uses task_id.
+
+        taskId is also accepted defensively.
+        */
+
+        const taskId =
+            aiResponse.task_id ||
+            aiResponse.taskId ||
+            null;
+
+
+        /*
+        Normal asynchronous Celery flow.
+        */
+
+        if (taskId) {
+
+            /*
+            Reload from MongoDB.
+
+            The callback could theoretically
+            finish before the original AI
+            request returns.
+            */
+
+            const currentArtifact =
+                await LearningArtifact.findById(
+                    artifact._id
+                );
+
+
+            if (!currentArtifact) {
+                throw new Error(
+                    "Learning artifact not found"
+                );
+            }
+
+
+            /*
+            Never overwrite COMPLETED with
+            PROCESSING.
+            */
+
+            if (
+                currentArtifact.summary.status !==
+                "COMPLETED"
+            ) {
+
+                currentArtifact.summary.status =
+                    "PROCESSING";
+
+                currentArtifact.summary.taskId =
+                    taskId;
+
+                currentArtifact.summary.error =
+                    null;
+
+
+                await currentArtifact.save();
+            }
+
+
+            return {
+                alreadyGenerated: false,
+
+                status:
+                    currentArtifact.summary.status,
+
+                taskId:
+                    currentArtifact.summary.taskId,
+
+                artifact:
+                    currentArtifact,
+            };
+        }
+
+
+        /*
+        Cache-hit case.
+
+        The AI service may send the cached
+        Summary through the callback instead
+        of creating a Celery task.
+        */
+
+        if (
+            aiResponse.message === "Cache hit"
+        ) {
+
+            /*
+            Reload because callback may already
+            have updated MongoDB.
+            */
+
+            const currentArtifact =
+                await LearningArtifact.findById(
+                    artifact._id
+                );
+
+
+            return {
+                alreadyGenerated:
+                    currentArtifact.summary.status ===
+                    "COMPLETED",
+
+                status:
+                    currentArtifact.summary.status,
+
+                cached: true,
+
+                artifact:
+                    currentArtifact,
+            };
+        }
+
+
+        throw new Error(
+            "Summary AI did not return a task ID"
+        );
+
+    } catch (error) {
+
+        /*
+        Reload before marking FAILED.
+
+        This prevents a successful callback
+        from accidentally being overwritten.
+        */
+
+        const currentArtifact =
+            await LearningArtifact.findById(
+                artifact._id
+            );
+
+
+        if (
+            currentArtifact &&
+            currentArtifact.summary.status !==
+            "COMPLETED"
+        ) {
+
+            currentArtifact.summary.status =
+                "FAILED";
+
+            currentArtifact.summary.error =
+                error.message;
+
+
+            await currentArtifact.save();
+        }
+
+
+        throw error;
+    }
 };
 
 
 /*
-Get Summary for an Activity.
+==================================================
+GET SUMMARY
+==================================================
 */
+
 const getSummaryByActivity = async (
     userId,
     activityId
 ) => {
+
+    /*
+    Verify that this Activity belongs
+    to the authenticated user.
+    */
 
     await getUserActivity(
         userId,
@@ -135,9 +355,6 @@ const getSummaryByActivity = async (
         keyPoints:
             artifact.summary.keyPoints,
 
-        subtopic:
-            artifact.summary.subtopic,
-
         generatedAt:
             artifact.summary.generatedAt,
 
@@ -148,27 +365,42 @@ const getSummaryByActivity = async (
 
 
 /*
-Save the completed Summary.
+==================================================
+SUMMARY AI CALLBACK
+==================================================
 
-Later the friend's AI result/callback
-will call this function.
+Current AI callback contains:
+
+{
+    activityId: "...",
+    content: [
+        "Point 1",
+        "Point 2",
+        ...
+    ]
+}
+
+No Summary subtopic is expected.
 */
-const completeSummary = async (
-    userId,
-    activityId,
-    summaryData
-) => {
 
-    await getUserActivity(
-        userId,
-        activityId
-    );
+const handleSummaryCallback = async ({
+    activityId,
+    taskId,
+    status,
+    content,
+    error,
+}) => {
+
+    if (!activityId) {
+        throw new Error(
+            "activityId is required"
+        );
+    }
 
 
     const artifact =
         await LearningArtifact.findOne({
             activityId,
-            userId,
         });
 
 
@@ -179,46 +411,83 @@ const completeSummary = async (
     }
 
 
-    const {
-        keyPoints,
-        subtopic,
-    } = summaryData;
+    /*
+    Explicit failure callback.
+    */
 
+    if (status === "FAILED") {
+
+        artifact.summary.status =
+            "FAILED";
+
+        artifact.summary.error =
+            error ||
+            "Summary generation failed";
+
+
+        if (taskId) {
+            artifact.summary.taskId =
+                taskId;
+        }
+
+
+        await artifact.save();
+
+        return artifact;
+    }
+
+
+    /*
+    Current Summary AI sends the generated
+    key points through `content`.
+    */
 
     if (
-        !Array.isArray(keyPoints) ||
-        keyPoints.length === 0
+        !Array.isArray(content) ||
+        content.length === 0
     ) {
         throw new Error(
-            "Summary keyPoints are required"
+            "Summary callback does not contain summary content"
         );
     }
 
+
+    /*
+    Save generated Summary.
+    */
 
     artifact.summary.status =
         "COMPLETED";
 
     artifact.summary.keyPoints =
-        keyPoints;
-
-    artifact.summary.subtopic =
-        subtopic || null;
+        content;
 
     artifact.summary.generatedAt =
         new Date();
 
-    artifact.summary.error = null;
+    artifact.summary.error =
+        null;
+
+
+    /*
+    Preserve Celery task ID when supplied.
+    */
+
+    if (taskId) {
+        artifact.summary.taskId =
+            taskId;
+    }
 
 
     await artifact.save();
 
 
-    return artifact.summary;
+    return artifact;
 };
 
 
 module.exports = {
-    prepareSummary,
+    generateSummary,
     getSummaryByActivity,
-    completeSummary,
+    handleSummaryCallback,
 };

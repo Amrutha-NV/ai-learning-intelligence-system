@@ -4,16 +4,21 @@ const quizService = require(
 
 
 /*
-POST /api/quizzes/generate/:activityId
+==================================================
+GENERATE QUIZ
+==================================================
 */
+
 const generateQuiz = async (
     req,
     res
 ) => {
+
     try {
 
-        const { activityId } =
-            req.params;
+        const {
+            activityId,
+        } = req.params;
 
 
         const result =
@@ -38,23 +43,29 @@ const generateQuiz = async (
 
         return res.status(500).json({
             success: false,
-            message: error.message,
+            message:
+                error.message,
         });
     }
 };
 
 
 /*
-GET /api/quizzes/:activityId
+==================================================
+GET QUIZ
+==================================================
 */
+
 const getQuiz = async (
     req,
     res
 ) => {
+
     try {
 
-        const { activityId } =
-            req.params;
+        const {
+            activityId,
+        } = req.params;
 
 
         const quiz =
@@ -66,6 +77,7 @@ const getQuiz = async (
 
 
         if (!quiz) {
+
             return res.status(404).json({
                 success: false,
                 message:
@@ -83,50 +95,61 @@ const getQuiz = async (
 
         return res.status(500).json({
             success: false,
-            message: error.message,
+            message:
+                error.message,
         });
     }
 };
 
 
 /*
-POST /api/quizzes/:activityId/attempt
+==================================================
+AI CALLBACK
+==================================================
+
+This route is called by the AI service,
+not by the frontend.
 */
-const submitQuizAttempt = async (
+
+const receiveQuizAICallback = async (
     req,
     res
 ) => {
+
     try {
 
-        const { activityId } =
-            req.params;
-
-
-        const attempt =
+        const result =
             await quizService
-                .saveQuizAttempt(
-                    req.user.id,
-                    activityId,
+                .handleQuizCallback(
                     req.body
                 );
 
 
-        return res.status(201).json({
+        console.log(
+            "Quiz callback processed for activity",
+            req.body.activityId
+        );
+
+
+        return res.status(200).json({
             success: true,
-            data: attempt,
+            message:
+                "Quiz callback processed",
+            data: result,
         });
 
     } catch (error) {
 
         console.error(
-            "Quiz attempt failed:",
+            "Quiz callback failed:",
             error.message
         );
 
 
-        return res.status(400).json({
+        return res.status(500).json({
             success: false,
-            message: error.message,
+            message:
+                error.message,
         });
     }
 };
@@ -135,5 +158,5 @@ const submitQuizAttempt = async (
 module.exports = {
     generateQuiz,
     getQuiz,
-    submitQuizAttempt,
+    receiveQuizAICallback,
 };
