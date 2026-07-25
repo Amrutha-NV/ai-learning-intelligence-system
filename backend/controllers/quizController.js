@@ -154,9 +154,63 @@ const receiveQuizAICallback = async (
     }
 };
 
+/*
+==================================================
+SUBMIT QUIZ
+==================================================
+*/
+
+const submitQuizAttempt = async (
+    req,
+    res
+) => {
+
+    try {
+
+        const userId =
+            req.user.id;
+
+        const {
+            activityId
+        } = req.params;
+
+        const {
+            answers
+        } = req.body;
+
+
+        const result =
+        await quizService.submitQuiz(
+            userId,
+            activityId,
+            answers
+        );
+
+
+        return res.status(200).json({
+            success: true,
+            data: result,
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Quiz submission failed:",
+            error.message
+        );
+
+
+        return res.status(400).json({
+            success: false,
+            message:
+                error.message,
+        });
+    }
+};
 
 module.exports = {
     generateQuiz,
     getQuiz,
     receiveQuizAICallback,
+    submitQuizAttempt,
 };
