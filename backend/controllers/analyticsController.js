@@ -1,48 +1,55 @@
-const analyticsService = require(
+const {
+    getAnalytics,
+} = require(
     "../services/analyticsService"
 );
 
-const getOverview = async (
+
+/*
+==================================================
+GET DASHBOARD ANALYTICS
+==================================================
+*/
+
+const getDashboardAnalytics = async (
     req,
     res
 ) => {
+
     try {
+
+        const userId =
+            req.user.id;
+
+
         const analytics =
-            await analyticsService.getAnalyticsOverview(
-                req.user.id
+            await getAnalytics(
+                userId
             );
 
-        res.status(200).json(
-            analytics
-        );
+
+        return res.status(200).json({
+            success: true,
+            data: analytics,
+        });
+
     } catch (error) {
-        res.status(500).json({
-            message: error.message,
+
+        console.error(
+            "Analytics error:",
+            error
+        );
+
+
+        return res.status(500).json({
+            success: false,
+            message:
+                "Failed to fetch analytics",
         });
     }
 };
 
-const getDistribution = async (
-    req,
-    res
-) => {
-    try {
-        const distribution =
-            await analyticsService.getStudyDistribution(
-                req.user.id
-            );
-
-        res.status(200).json(
-            distribution
-        );
-    } catch (error) {
-        res.status(500).json({
-            message: error.message,
-        });
-    }
-};
 
 module.exports = {
-    getOverview,
-    getDistribution,
+    getDashboardAnalytics,
 };
