@@ -1,40 +1,74 @@
-const Activity = require("../models/Activity");
+const Activity = require(
+    "../models/Activity"
+);
+
 const LearningArtifact = require(
     "../models/LearningArtifact"
 );
 
+const {
+    requestQuizGeneration,
+} = require(
+    "./quizAIService"
+);
+
 
 /*
-Prepare Quiz Generation
-
-For now:
-- verify Activity ownership
-- require completed classification
-- create/find LearningArtifact
-- prepare Quiz state
-
-Later:
-- call friend's Quiz AI here
+==================================================
+HELPER
+==================================================
 */
+
+const getUserActivity = async (
+    userId,
+    activityId
+) => {
+
+    const activity =
+        await Activity.findOne({
+            _id: activityId,
+            userId,
+        });
+
+
+    if (!activity) {
+        throw new Error(
+            "Activity not found"
+        );
+    }
+
+
+    return activity;
+};
+
+
+/*
+==================================================
+GENERATE QUIZ
+==================================================
+*/
+
 const generateQuiz = async (
     userId,
     activityId
 ) => {
 
-    const activity = await Activity.findOne({
-        _id: activityId,
-        userId,
-    });
+    /*
+    Verify Activity ownership.
+    */
 
-    if (!activity) {
-        throw new Error("Activity not found");
-    }
+    const activity =
+        await getUserActivity(
+            userId,
+            activityId
+        );
 
 
     /*
-    Quiz should only be generated after
-    classification has completed.
+    Quiz should only be generated from
+    classified learning content.
     */
+
     if (
         activity.classificationStatus !==
         "COMPLETED"
@@ -46,95 +80,258 @@ const generateQuiz = async (
 
 
     /*
-    Find or create one LearningArtifact
-    for this Activity.
+    Summary must already exist because
+    Quiz generation uses the Summary.
     */
-    let artifact =
+
+    const artifact =
         await LearningArtifact.findOne({
-            activityId: activity._id,
+            activityId:
+                activity._id,
+
+            userId,
         });
 
 
     if (!artifact) {
-        artifact =
-            await LearningArtifact.create({
-                userId,
-                activityId: activity._id,
-            });
+        throw new Error(
+            "Learning artifact not found"
+        );
+    }
+
+
+    if (
+        artifact.summary.status !==
+        "COMPLETED"
+    ) {
+        throw new Error(
+            "Summary must be completed before generating quiz"
+        );
+    }
+
+
+    if (
+        !Array.isArray(
+            artifact.summary.keyPoints
+        ) ||
+        artifact.summary.keyPoints.length === 0
+    ) {
+        throw new Error(
+            "Summary does not contain key points"
+        );
     }
 
 
     /*
-    Already generated.
+    Don't regenerate completed Quiz.
     */
+
     if (
         artifact.quiz.status ===
         "COMPLETED"
     ) {
         return {
-            ready: true,
             alreadyGenerated: true,
+
             status: "COMPLETED",
-            quiz: artifact.quiz,
+
+            artifact,
         };
     }
 
 
     /*
-    AI task already running.
-    This will matter once Quiz AI
-    integration is connected.
+    Prevent duplicate Celery jobs.
     */
+
     if (
         artifact.quiz.status ===
         "PROCESSING"
     ) {
         return {
-            ready: true,
             alreadyGenerated: false,
+
             status: "PROCESSING",
-            taskId: artifact.quiz.taskId,
+
+            taskId:
+                artifact.quiz.taskId,
+
+            artifact,
         };
     }
 
 
-    /*
-    For now we stop here.
+    try {
 
-    Later this exact location will call:
-    requestQuizGeneration(activity)
-    */
-    return {
-        ready: true,
-        alreadyGenerated: false,
-        status: artifact.quiz.status,
-        activity,
-        artifact,
-    };
+        /*
+        Node → Quiz AI
+        */
+
+        const aiResponse =
+            await requestQuizGeneration(
+                activity,
+                artifact.summary
+            );
+
+
+        /*
+        Support both naming conventions.
+        */
+
+        const taskId =
+            aiResponse.task_id ||
+            aiResponse.taskId ||
+            null;
+
+
+        /*
+        Normal Celery case.
+        */
+
+        if (taskId) {
+
+            /*
+            Re-fetch because the AI callback
+            could theoretically arrive before
+            this request finishes.
+            */
+
+            const currentArtifact =
+                await LearningArtifact.findById(
+                    artifact._id
+                );
+
+
+            /*
+            Never overwrite COMPLETED if the
+            callback already finished.
+            */
+
+            if (
+                currentArtifact.quiz.status !==
+                "COMPLETED"
+            ) {
+
+                currentArtifact.quiz.status =
+                    "PROCESSING";
+
+                currentArtifact.quiz.taskId =
+                    taskId;
+
+                currentArtifact.quiz.error =
+                    null;
+
+
+                await currentArtifact.save();
+            }
+
+
+            return {
+                alreadyGenerated: false,
+
+                status:
+                    currentArtifact.quiz.status,
+
+                taskId:
+                    currentArtifact.quiz.taskId,
+
+                artifact:
+                    currentArtifact,
+            };
+        }
+
+
+        /*
+        Handle cache hit without assuming
+        that absence of task ID means failure.
+        */
+
+        if (
+            aiResponse.message ===
+            "Cache hit"
+        ) {
+
+            const currentArtifact =
+                await LearningArtifact.findById(
+                    artifact._id
+                );
+
+
+            return {
+                alreadyGenerated: false,
+
+                cached: true,
+
+                status:
+                    currentArtifact.quiz.status,
+
+                artifact:
+                    currentArtifact,
+            };
+        }
+
+
+        throw new Error(
+            "Quiz AI did not return a task ID"
+        );
+
+    } catch (error) {
+
+        /*
+        Re-fetch before setting FAILED so
+        we don't overwrite a callback that
+        already completed successfully.
+        */
+
+        const currentArtifact =
+            await LearningArtifact.findById(
+                artifact._id
+            );
+
+
+        if (
+            currentArtifact &&
+            currentArtifact.quiz.status !==
+            "COMPLETED"
+        ) {
+
+            currentArtifact.quiz.status =
+                "FAILED";
+
+            currentArtifact.quiz.error =
+                error.message;
+
+
+            await currentArtifact.save();
+        }
+
+
+        throw error;
+    }
 };
 
 
 /*
-Get generated Quiz
+==================================================
+GET QUIZ
+==================================================
 */
+
 const getQuizByActivity = async (
     userId,
     activityId
 ) => {
 
-    const activity = await Activity.findOne({
-        _id: activityId,
+    await getUserActivity(
         userId,
-    });
-
-    if (!activity) {
-        throw new Error("Activity not found");
-    }
+        activityId
+    );
 
 
     const artifact =
         await LearningArtifact.findOne({
             activityId,
+            userId,
         });
 
 
@@ -144,9 +341,11 @@ const getQuizByActivity = async (
 
 
     return {
-        status: artifact.quiz.status,
+        status:
+            artifact.quiz.status,
 
-        taskId: artifact.quiz.taskId,
+        taskId:
+            artifact.quiz.taskId,
 
         questions:
             artifact.quiz.questions,
@@ -161,24 +360,35 @@ const getQuizByActivity = async (
 
 
 /*
-Save a completed Quiz attempt.
+==================================================
+QUIZ AI CALLBACK
+==================================================
 
-Later the frontend will call this
-after the user submits the Quiz.
+Expected:
+
+{
+    activityId: "...",
+    status: "COMPLETED",
+
+    quiz: {
+        questions: [...]
+    }
+}
 */
-const saveQuizAttempt = async (
-    userId,
+
+const handleQuizCallback = async ({
     activityId,
-    attemptData
-) => {
+    taskId,
+    status,
+    quiz,
+    questions,
+    error,
+}) => {
 
-    const activity = await Activity.findOne({
-        _id: activityId,
-        userId,
-    });
-
-    if (!activity) {
-        throw new Error("Activity not found");
+    if (!activityId) {
+        throw new Error(
+            "activityId is required"
+        );
     }
 
 
@@ -195,59 +405,137 @@ const saveQuizAttempt = async (
     }
 
 
-    const {
-        score,
-        totalQuestions,
-    } = attemptData;
+    /*
+    FAILED callback
+    */
+
+    if (status === "FAILED") {
+
+        artifact.quiz.status =
+            "FAILED";
+
+        artifact.quiz.error =
+            error ||
+            "Quiz generation failed";
+
+
+        if (taskId) {
+            artifact.quiz.taskId =
+                taskId;
+        }
+
+
+        await artifact.save();
+
+
+        return artifact;
+    }
+
+
+    /*
+    Primary contract:
+        quiz.questions
+
+    Also tolerate:
+        questions
+
+    so backend is not unnecessarily
+    coupled to one wrapper shape.
+    */
+
+    const generatedQuestions =
+        quiz?.questions ||
+        questions;
 
 
     if (
-        score === undefined ||
-        totalQuestions === undefined
+        !Array.isArray(
+            generatedQuestions
+        ) ||
+        generatedQuestions.length === 0
     ) {
         throw new Error(
-            "score and totalQuestions are required"
+            "Quiz callback does not contain questions"
         );
     }
 
 
-    if (
-        totalQuestions <= 0 ||
-        score < 0 ||
-        score > totalQuestions
+    /*
+    Validate basic question structure.
+    */
+
+    for (
+        const question of
+        generatedQuestions
     ) {
-        throw new Error(
-            "Invalid quiz attempt"
-        );
+
+        if (
+            !question.question ||
+            !Array.isArray(
+                question.options
+            ) ||
+            question.options.length === 0
+        ) {
+            throw new Error(
+                "Invalid quiz question format"
+            );
+        }
+
+
+        if (
+            !Number.isInteger(
+                question.correctAnswer
+            )
+        ) {
+            throw new Error(
+                "Quiz correctAnswer must be an option index"
+            );
+        }
+
+
+        if (
+            question.correctAnswer < 0 ||
+            question.correctAnswer >=
+                question.options.length
+        ) {
+            throw new Error(
+                "Quiz correctAnswer index is out of range"
+            );
+        }
     }
 
 
-    const accuracy = Number(
-        (
-            (score / totalQuestions) *
-            100
-        ).toFixed(2)
-    );
+    /*
+    Save Quiz.
+    */
+
+    artifact.quiz.status =
+        "COMPLETED";
+
+    artifact.quiz.questions =
+        generatedQuestions;
+
+    artifact.quiz.generatedAt =
+        new Date();
+
+    artifact.quiz.error =
+        null;
 
 
-    artifact.quizAttempts.push({
-        score,
-        totalQuestions,
-        accuracy,
-    });
+    if (taskId) {
+        artifact.quiz.taskId =
+            taskId;
+    }
 
 
     await artifact.save();
 
 
-    return artifact.quizAttempts[
-        artifact.quizAttempts.length - 1
-    ];
+    return artifact;
 };
-
 
 module.exports = {
     generateQuiz,
     getQuizByActivity,
-    saveQuizAttempt,
+    handleQuizCallback,
 };
