@@ -40,26 +40,61 @@ async function syncPendingEvents() {
 
     for (const learningEvent of pendingEvents) {
 
+        // try {
+
+        //     await sendLearningEvent(learningEvent);
+
+        //     await removePendingEvent(
+        //         learningEvent.sessionId
+        //     );
+
+        //     console.log(
+        //         `Synced: ${learningEvent.sessionId}`
+        //     );
+
+        // }
+        // catch (error) {
+
+        //     console.error(
+        //         `Failed to sync ${learningEvent.sessionId}`,
+        //         error
+        //     );
+
+        // }
         try {
 
-            await sendLearningEvent(learningEvent);
+            const response =
+                await sendLearningEvent(
+                    learningEvent
+                );
 
-            await removePendingEvent(
-                learningEvent.sessionId
-            );
+            if (
+                response &&
+                response.success
+            ) {
 
-            console.log(
-                `Synced: ${learningEvent.sessionId}`
-            );
+                await removePendingEvent(
+                    learningEvent.sessionId
+                );
 
-        }
-        catch (error) {
+                console.log(
+                    `Synced: ${learningEvent.sessionId}`
+                );
+
+            } else {
+
+                console.error(
+                    `Sync failed: ${learningEvent.sessionId}`,
+                    response?.error
+                );
+            }
+
+        } catch (error) {
 
             console.error(
                 `Failed to sync ${learningEvent.sessionId}`,
                 error
             );
-
         }
 
     }
