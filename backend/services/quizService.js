@@ -534,8 +534,195 @@ const handleQuizCallback = async ({
     return artifact;
 };
 
+/*
+==================================================
+SUBMIT QUIZ
+==================================================
+*/
+
+const submitQuiz = async (
+    userId,
+    activityId,
+    answers
+) => {
+
+    /*
+    Verify Activity belongs to user.
+    */
+
+    await getUserActivity(
+        userId,
+        activityId
+    );
+
+
+    /*
+    Find generated quiz.
+    */
+
+    const artifact =
+        await LearningArtifact.findOne({
+            activityId,
+            userId,
+        });
+
+
+    if (!artifact) {
+        throw new Error(
+            "Learning artifact not found"
+        );
+    }
+
+
+    /*
+    Quiz must already be generated.
+    */
+
+    if (
+        artifact.quiz.status !==
+        "COMPLETED"
+    ) {
+        throw new Error(
+            "Quiz is not completed yet"
+        );
+    }
+
+
+    const questions =
+        artifact.quiz.questions;
+
+
+    if (
+        !Array.isArray(questions) ||
+        questions.length === 0
+    ) {
+        throw new Error(
+            "Quiz has no questions"
+        );
+    }
+
+
+    /*
+    Validate submitted answers.
+    */
+
+    if (!Array.isArray(answers)) {
+        throw new Error(
+            "answers must be an array"
+        );
+    }
+
+
+    if (
+        answers.length !==
+        questions.length
+    ) {
+        throw new Error(
+            `Expected ${questions.length} answers`
+        );
+    }
+
+
+    /*
+    Calculate score.
+    */
+
+    let score = 0;
+
+
+    questions.forEach(
+        (question, index) => {
+
+            const selectedAnswer =
+                answers[index];
+
+
+            if (
+                !Number.isInteger(
+                    selectedAnswer
+                )
+            ) {
+                throw new Error(
+                    `Answer ${index + 1} must be an option index`
+                );
+            }
+
+
+            if (
+                selectedAnswer < 0 ||
+                selectedAnswer >=
+                    question.options.length
+            ) {
+                throw new Error(
+                    `Invalid answer for question ${index + 1}`
+                );
+            }
+
+
+            if (
+                selectedAnswer ===
+                question.correctAnswer
+            ) {
+                score++;
+            }
+        }
+    );
+
+
+    const totalQuestions =
+        questions.length;
+
+
+    const accuracy =
+        Number(
+            (
+                (score /
+                    totalQuestions) *
+                100
+            ).toFixed(2)
+        );
+
+
+    /*
+    Save attempt.
+    */
+
+    artifact.quizAttempts.push({
+        score,
+        totalQuestions,
+        accuracy,
+        completedAt:
+            new Date(),
+    });
+
+
+    await artifact.save();
+
+
+    const savedAttempt =
+        artifact.quizAttempts[
+            artifact.quizAttempts.length - 1
+        ];
+
+
+    return {
+        attemptId:
+            savedAttempt._id,
+
+        score,
+
+        totalQuestions,
+
+        accuracy,
+
+        completedAt:
+            savedAttempt.completedAt,
+    };
+};
+
 module.exports = {
     generateQuiz,
     getQuizByActivity,
     handleQuizCallback,
+    submitQuiz,
 };

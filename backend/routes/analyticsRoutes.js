@@ -1,34 +1,38 @@
-const express = require("express");
+const express =
+    require("express");
 
-const router = express.Router();
+const router =
+    express.Router();
 
-const protect = require(
-    "../middleware/authMiddleware"
-);
+
+const protect =
+    require(
+        "../middleware/authMiddleware"
+    );
+
 
 const {
-    getOverview,
-    getDistribution,
+    getDashboardAnalytics,
 } = require(
     "../controllers/analyticsController"
 );
 
-/*
-Analytics Overview
-*/
-router.get(
-    "/overview",
-    protect,
-    getOverview
-);
 
 /*
-Study Distribution
+==================================================
+GET /api/analytics
+==================================================
+
+Returns dashboard analytics
+for logged-in user.
 */
+
 router.get(
-    "/distribution",
+    "/",
     protect,
-    getDistribution
+    getDashboardAnalytics
 );
 
-module.exports = router;
+
+module.exports =
+    router;

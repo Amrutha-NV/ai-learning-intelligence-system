@@ -13,7 +13,7 @@ const {
     generateQuiz,
     getQuiz,
     receiveQuizAICallback,
-    retryQuizGeneration,
+    submitQuizAttempt,
 } = require(
     "../controllers/quizController"
 );
@@ -58,6 +58,16 @@ not a logged-in browser user.
 router.post(
     "/ai-callback",
     receiveQuizAICallback
+);
+
+/*
+POST /api/quizzes/:activityId/submit
+Submit completed quiz
+*/
+router.post(
+    "/:activityId/submit",
+    protect,
+    submitQuizAttempt
 );
 
 module.exports = router;
