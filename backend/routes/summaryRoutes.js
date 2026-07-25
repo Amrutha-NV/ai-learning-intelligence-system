@@ -7,36 +7,63 @@ const protect = require(
 );
 
 const {
-    prepareSummary,
+    generateSummary,
     getSummary,
+    receiveSummaryCallback,
 } = require(
     "../controllers/summaryController"
 );
 
 
 /*
-Prepare Summary generation.
-
-For now this creates/finds the
-LearningArtifact.
-
-Later this endpoint will also trigger
-the friend's Summary AI.
+==================================================
+USER ROUTES
+==================================================
 */
+
+
+/*
+Generate Summary
+
+Frontend/User
+      ↓
+Node
+      ↓
+Summary AI
+*/
+
 router.post(
     "/generate/:activityId",
     protect,
-    prepareSummary
+    generateSummary
 );
 
 
 /*
-Get Summary for Activity.
+Get generated Summary.
 */
+
 router.get(
     "/:activityId",
     protect,
     getSummary
+);
+
+
+/*
+==================================================
+AI CALLBACK
+==================================================
+
+Do NOT use normal user authentication here.
+
+This request comes from the Summary AI
+service/Celery worker, not from the browser user.
+*/
+
+router.post(
+    "/ai-callback",
+    receiveSummaryCallback
 );
 
 
