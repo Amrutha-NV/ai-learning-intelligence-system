@@ -1,9 +1,8 @@
 import { Clock, ExternalLink } from "lucide-react";
-import {Link} from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 export default function Section({
- topic,
-  subtopic,
+  activityId,
   title,
   timestamp,
   description,
@@ -36,14 +35,13 @@ export default function Section({
         <p className="text-gray-600 leading-7 mb-6">
           {description}
         </p>
-        <Link to={`/${topic}/${subtopic}/summary`}>
-         <button className="inline-flex items-center gap-2 border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors duration-200">
-          Summary
-          <ExternalLink size={15} />
-        </button>
-        </Link>
 
-       
+        <Link to={`/activity/${activityId}/summary`}>
+          <button className="inline-flex items-center gap-2 border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors duration-200">
+            Summary
+            <ExternalLink size={15} />
+          </button>
+        </Link>
       </div>
     </div>
   );

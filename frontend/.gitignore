@@ -28,5 +28,4 @@ node_modules/
 # Environments and Secrets
 .env
 
-# Lockfile (Not recommended to ignore, but included per request)
-package-lock.json
+

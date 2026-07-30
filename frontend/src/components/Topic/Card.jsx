@@ -1,16 +1,15 @@
-import { useNavigate ,Link} from "react-router-dom";
+import { Link } from "react-router-dom";
 import { FileText, Clock, ChevronRight } from "lucide-react";
 
 export default function Card({
   id,
-  topic,
+  trackId,
   name,
   activities,
   lastActive,
 }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-lg hover:-translate-y-[1px] transition-all duration-200">
-
       {/* Icon */}
       <div className="w-9 h-9 rounded-lg bg-cyan-50 flex items-center justify-center mb-3">
         <FileText size={16} className="text-cyan-500" />
@@ -38,16 +37,14 @@ export default function Card({
       </div>
 
       {/* Button */}
-      <Link to={`/${topic}/subtopic/${id}`}>
-       <button
-        className="w-full flex items-center justify-center gap-2 border border-gray-200 rounded-lg py-2 text-[13px] font-medium text-gray-900 hover:bg-gray-50 transition-colors duration-200"
-      >
-        Open Topic
-        <ChevronRight size={14} />
-      </button>
+      <Link to={`/track/${trackId}/topic/${id}`}>
+        <button
+          className="w-full flex items-center justify-center gap-2 border border-gray-200 rounded-lg py-2 text-[13px] font-medium text-gray-900 hover:bg-gray-50 transition-colors duration-200"
+        >
+          Open Topic
+          <ChevronRight size={14} />
+        </button>
       </Link>
-     
-
     </div>
   );
 }
