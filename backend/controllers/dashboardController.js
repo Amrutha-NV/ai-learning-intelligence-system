@@ -2,7 +2,10 @@ const dashboardService = require("../services/dashboardService");
 
 const createTrack = async (req, res) => {
     try {
+        console.log(req.headers);
+        console.log(req.body);
         const track = await dashboardService.createManualTrack(
+
             req.user.id,
             req.body.trackName
         );

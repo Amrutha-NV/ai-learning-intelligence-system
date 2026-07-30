@@ -1,62 +1,83 @@
-import { useParams ,Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
+import { useEffect } from "react";
 import Card from "../components/Topic/Card.jsx";
+import { useDashboard } from "../context/DashboardContext.jsx";
 
 export default function Topic() {
-  const { id } = useParams();
-  const maintopic=id;
+  const { trackId } = useParams();
+  const { topics, topicsLoading, topicsError, fetchTopics, tracks } = useDashboard();
 
-  const TOPICS = [
-    { id: "arrays", name: "Arrays", activities: 5, lastActive: "June 15, 2026" },
-    { id: "linkedlists", name: "Linked Lists", activities: 3, lastActive: "June 14, 2026" },
-    { id: "stacks", name: "Stacks", activities: 2, lastActive: "June 12, 2026" },
-    { id: "queues", name: "Queues", activities: 2, lastActive: "June 11, 2026" },
-    { id: "trees", name: "Trees", activities: 4, lastActive: "June 10, 2026" },
-    { id: "graphs", name: "Graphs", activities: 3, lastActive: "June 8, 2026" },
-    { id: "dp", name: "Dynamic Programming", activities: 6, lastActive: "June 6, 2026" },
-  ];
+  useEffect(() => {
+    if (trackId) {
+      fetchTopics(trackId);
+    }
+  }, [trackId, fetchTopics]);
+
+  const currentTrack = tracks.find((t) => (t._id || t.id) === trackId);
+  const trackName = currentTrack?.name || "Track";
 
   return (
     <div className="p-10">
-
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-6">
-        <span className="text-sm text-gray-500 cursor-pointer">
+        <span className="text-sm text-gray-500 hover:text-gray-700">
           <Link to="/dashboard">Dashboard</Link>
         </span>
-
         <ChevronRight size={14} className="text-gray-400" />
-
-        <span className="text-sm font-medium text-gray-900">
-          {id}
-        </span>
+        <span className="text-sm font-medium text-gray-900">{trackName}</span>
       </div>
 
       {/* Heading */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          {id}
-        </h1>
-
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{trackName}</h1>
         <p className="text-gray-500">
-          {TOPICS.length} topics tracked in this learning path.
+          {topics.length} topic{topics.length === 1 ? "" : "s"} tracked in this learning path.
         </p>
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-3 gap-5">
-        {TOPICS.map((topic) => (
-          <Card
-            key={topic.id}
-            id={topic.id}
-            topic={maintopic}
-            name={topic.name}
-            activities={topic.activities}
-            lastActive={topic.lastActive}
-          />
-        ))}
-      </div>
+      {/* Loading State */}
+      {topicsLoading && (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+        </div>
+      )}
 
+      {/* Error State */}
+      {topicsError && !topicsLoading && (
+        <div className="rounded-lg bg-red-50 p-4 text-red-700 mb-6">
+          {topicsError}
+        </div>
+      )}
+
+      {/* Cards */}
+      {!topicsLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {topics.length === 0 ? (
+            <div className="col-span-full py-12 text-center text-gray-500 bg-gray-50 border border-dashed rounded-xl">
+              No topics found for this track yet.
+            </div>
+          ) : (
+            topics.map((topic) => {
+              const topicId = topic._id || topic.id;
+              return (
+                <Card
+                  key={topicId}
+                  id={topicId}
+                  trackId={trackId}
+                  name={topic.name || topic.topic}
+                  activities={topic.activitiesCount || topic.activityCount || topic.activities?.length || 0}
+                  lastActive={
+                    topic.lastActive || topic.updatedAt
+                      ? new Date(topic.updatedAt || Date.now()).toLocaleDateString()
+                      : "Recently"
+                  }
+                />
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }
