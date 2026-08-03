@@ -28,6 +28,7 @@ export default function ExtensionPrompt() {
 
   const handleConnectExtension = () => {
     setIsConnecting(true);
+  const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID;
 
     // Broadcast token via postMessage for content scripts to pick up
     window.postMessage({ type: "AILIS_CONNECT_EXTENSION", token }, "*");
@@ -36,7 +37,7 @@ export default function ExtensionPrompt() {
     if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
       try {
         window.chrome.runtime.sendMessage(
-    "ajbmbneclnphlhifplocffbnedfbhkel",
+          EXTENSION_ID,
     {
         action: "SET_TOKEN",
         token
