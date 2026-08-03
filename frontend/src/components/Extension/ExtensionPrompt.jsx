@@ -36,29 +36,37 @@ export default function ExtensionPrompt() {
     if (window.chrome && window.chrome.runtime && window.chrome.runtime.sendMessage) {
       try {
         window.chrome.runtime.sendMessage(
-          { action: "SET_TOKEN", token },
-          (response) => {
-            if (response && response.success) {
-              localStorage.setItem("extension_connected", "true");
-              setStep(3);
-              toast.success("Extension connected successfully!");
-              setIsConnecting(false);
-              return;
-            }
-          }
-        );
+    "ajbmbneclnphlhifplocffbnedfbhkel",
+    {
+        action: "SET_TOKEN",
+        token
+    },
+    (response) => {
+        if (response?.success) {
+            localStorage.setItem("extension_connected", "true");
+            setStep(3);
+            toast.success("Extension connected successfully!");
+        } else {
+            toast.error("Failed to connect extension.");
+        }
+
+        setIsConnecting(false);
+    }
+);
       } catch (err) {
-        console.log("Direct extension runtime communication unavailable, using fallback sync.", err);
-      }
+  console.error(err);
+  toast.error("Extension not installed or unavailable.");
+  setIsConnecting(false);
+}
     }
 
     // Fallback simulation for smooth UX
-    setTimeout(() => {
-      localStorage.setItem("extension_connected", "true");
-      setStep(3);
-      toast.success("Extension connected! Activity tracking is now active.");
-      setIsConnecting(false);
-    }, 1200);
+    //setTimeout(() => {
+    //  localStorage.setItem("extension_connected", "true");
+    //  setStep(3);
+    //  toast.success("Extension connected! Activity tracking is now active.");
+    //  setIsConnecting(false);
+    //}, 1200);
   };
 
   const handleDisconnect = () => {

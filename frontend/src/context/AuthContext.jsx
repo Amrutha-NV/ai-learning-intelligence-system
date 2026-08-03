@@ -61,14 +61,35 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const savedToken = getToken();
-    if (savedToken) {
-      setTokenState(savedToken);
-      fetchUserData().finally(() => setLoading(false));
-    } else {
+  // Check if GitHub redirected back with a JWT
+  const params = new URLSearchParams(window.location.search);
+  const githubToken = params.get("token");
+
+  if (githubToken) {
+    localStorage.setItem("token", githubToken);
+    setTokenState(githubToken);
+
+    // Remove ?token=... from the URL
+    window.history.replaceState({}, "", "/dashboard");
+
+    fetchUserData().finally(() => {
       setLoading(false);
-    }
-  }, []);
+      navigate("/dashboard");
+    });
+
+    return;
+  }
+
+  // Normal login flow
+  const savedToken = getToken();
+
+  if (savedToken) {
+    setTokenState(savedToken);
+    fetchUserData().finally(() => setLoading(false));
+  } else {
+    setLoading(false);
+  }
+}, [navigate]);
 
   const login = async (email, password) => {
     setLoading(true);

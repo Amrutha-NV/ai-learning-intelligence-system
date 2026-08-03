@@ -44,7 +44,7 @@ import {
     syncPendingEvents
 } from "../services/syncService.js";
 
-
+import { saveAuthToken } from "../services/authService.js";
 
 /**
  * ============================================
@@ -241,4 +241,32 @@ initializeActiveTab();
  */
 chrome.runtime.onMessage.addListener(
     handleMessage
+);
+
+chrome.runtime.onMessageExternal.addListener(
+    async (message, sender, sendResponse) => {
+
+        if (message.action === "SET_TOKEN") {
+
+            try {
+
+                await saveAuthToken(message.token);
+
+                sendResponse({
+                    success: true
+                });
+
+            } catch (error) {
+
+                sendResponse({
+                    success: false,
+                    error: error.message
+                });
+
+            }
+
+        }
+
+        return true;
+    }
 );

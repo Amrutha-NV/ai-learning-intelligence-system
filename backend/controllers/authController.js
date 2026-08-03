@@ -200,6 +200,110 @@ const googleLogin = async (req, res) => {
   }
 };
 
+// GET /api/auth/github
+const githubAuth = (req, res) => {
+  const githubURL =
+    `https://github.com/login/oauth/authorize` +
+    `?client_id=${process.env.GITHUB_CLIENT_ID}` +
+    `&scope=read:user user:email`;
+
+  return res.redirect(githubURL);
+};
+
+
+
+// GET /api/auth/github/callback
+const githubCallback = async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    if (!code) {
+      return res.status(400).json({
+        message: "GitHub authorization code is missing",
+      });
+    }
+
+    // Exchange code for access token
+    const tokenResponse = await axios.post(
+      "https://github.com/login/oauth/access_token",
+      {
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+
+    if (!accessToken) {
+      return res.status(400).json({
+        message: "Failed to obtain GitHub access token",
+      });
+    }
+
+    // Get GitHub user profile
+    const githubUser = await axios.get(
+      "https://api.github.com/user",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    // Get GitHub email
+    const githubEmails = await axios.get(
+      "https://api.github.com/user/emails",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const primaryEmail = githubEmails.data.find(
+      (email) => email.primary
+    )?.email;
+
+    if (!primaryEmail) {
+      return res.status(400).json({
+        message: "No primary email found",
+      });
+    }
+
+    let user = await User.findOne({
+      email: primaryEmail.toLowerCase(),
+    });
+
+    if (!user) {
+      user = await User.create({
+        fullName: githubUser.data.name || githubUser.data.login,
+        email: primaryEmail.toLowerCase().trim(),
+        authProvider: "github",
+      });
+    }
+
+    const jwtToken = generateToken(user._id);
+
+    // Redirect back to frontend with JWT
+    return res.redirect(
+      `http://localhost:5173/login?token=${jwtToken}`
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "GitHub authentication failed",
+    });
+  }
+};
+
 
 // POST /api/auth/github
 const githubLogin = async (req, res) => {
@@ -409,5 +513,7 @@ module.exports = {
   resetPassword,
   refreshToken,
   googleLogin,
+  githubAuth,
+  githubCallback,
   githubLogin,
 };

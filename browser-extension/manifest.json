@@ -40,6 +40,12 @@
     "https://*/*",
     "http://localhost:5000/*"
   ],
+  
+  "externally_connectable": {
+  "matches": [
+    "http://localhost:5173/*"
+  ]
+},
 
   "content_scripts": [
     {

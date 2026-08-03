@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext.jsx';
+import { GoogleLogin } from "@react-oauth/google";
 
 export default function AuthPage({ mode }) {
   const isSignup = mode === 'signup';
@@ -136,17 +137,26 @@ export default function AuthPage({ mode }) {
         {/* Social Login */}
         <section>
           <div className="flex gap-3">
+            <div className="flex-1 flex justify-center">
+  <GoogleLogin
+    onSuccess={async (credentialResponse) => {
+      if (credentialResponse.credential) {
+        await googleLogin(credentialResponse.credential);
+      } else {
+        toast.error("Failed to get Google ID token");
+      }
+    }}
+    onError={() => {
+      toast.error("Google Login Failed");
+    }}
+  />
+</div>
             <button
               type="button"
               className="flex-1 border border-gray-200 rounded-lg py-3 text-sm font-medium hover:bg-gray-50 flex items-center justify-center"
-              onClick={() => googleLogin()}
-            >
-              Google
-            </button>
-            <button
-              type="button"
-              className="flex-1 border border-gray-200 rounded-lg py-3 text-sm font-medium hover:bg-gray-50 flex items-center justify-center"
-              onClick={() => githubLogin()}
+              onClick={() => {
+  window.location.href = "http://localhost:5000/api/auth/github";
+}}
             >
               GitHub
             </button>
